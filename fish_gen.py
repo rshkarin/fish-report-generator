@@ -34,10 +34,9 @@ class FishMaker:
 			print "%s is generating..." % os.path.join(outputPath, outputFile)
 
 			scv_file.writerow(self.statColumns)
-			
+
 			for sliceIdx in range(self.numSlices):
-				for statIdx in range(len(self.statColumns)):
-					scv_file.writerow(reduce(operator.add, [[statIdx], [self.sigma * np.random.randn() + self.mu for _ in range(len(self.statColumns) - 1)]]))
+				scv_file.writerow(reduce(operator.add, [[sliceIdx], [self.sigma * np.random.randn() + self.mu for _ in range(len(self.statColumns) - 1)]]))
 
 def main():
 	fishMaker = FishMaker()
