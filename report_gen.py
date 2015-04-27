@@ -10,6 +10,10 @@ from reportlab.lib.utils import ImageReader
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.rl_config import defaultPageSize
+import matplotlib.pyplot as plt
+import matplotlib.cm as cmx
+import matplotlib.colors as colors
+
 import pandas as pd
 from pandas import DataFrame
 
@@ -83,6 +87,15 @@ class FishReport:
         self.styleH2 = self.styles["Heading2"]
         self.story = [Spacer(1, 2 * inch)]
 
+    def get_cmap(N):
+        color_norm  = colors.Normalize(vmin=0, vmax=N-1)
+        scalar_map = cmx.ScalarMappable(norm=color_norm, cmap='hsv') 
+
+        def map_index_to_rgb_color(index):
+            return scalar_map.to_rgba(index)
+    
+        return map_index_to_rgb_color
+
     def titlePage(self, canvas, doc):
         canvas.saveState()
         canvas.setFont('Times-Bold',32)
@@ -103,7 +116,7 @@ class FishReport:
 
         for fishClass, fishNames in args.items():
             for fishName in fishNames:
-                dataFrames[fishName][column].plot(label=fishName)
+                ax = dataFrames[fishName][column].plot(ax=ax, label=fishName)
 
         plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
         plt.xlabel('Number of slice (%)')
@@ -122,6 +135,7 @@ class FishReport:
     def readDataFrames(self, inputPath, fishClasses):
         dataFrames = {}
         cols = []
+        totalVolumeSize = 0.
 
         for fishClass, fishNames in self.args.items():
             for fishName in fishNames:
@@ -129,8 +143,15 @@ class FishReport:
                 files = [f for f in os.listdir(dataPath) if os.path.isfile(os.path.join(dataPath,f)) and f.startswith(self.methodPrefix)]
 
                 if files:
-                    dataFrames[fishName] = pd.read_csv(os.path.join(dataPath,
-                        files[0]), sep=';')
+                    name_comps = files[0].split('_')
+
+                    if float(name_comps[1]):
+                        totalVolumeSize = float(name_comps[1])
+                    
+                    dataFrames[fishName] = pd.read_csv(os.path.join(dataPath, files[0]), sep=';')
+
+                    if totalVolumeSize:
+                        dataFrames[fishName] = dataFrames[fishName].div(totalVolumeSize)
 
                 if not cols:
                     cols = dataFrames[fishName].columns.tolist()
@@ -158,9 +179,11 @@ class FishReport:
         self.doc.build(self.story, onFirstPage=self.titlePage, onLaterPages=self.regularPage)
 
 def main(args):
-    fishReport = FishReport(args, '~/ANKA_Work/Results')
+    fishReport = FishReport(args, 'E:\Report generator\Results')
     fishReport.generate()
 
 if __name__ == '__main__':
-    main(sys.argv[1])
+    args = "{'Wild':['fish200','fish202','fish204','fish214','fish215','fish221','fish223','fish224','fish226','fish228','fish230','fish231','fish233','fish235','fish236','fish237','fish238','fish239','fish243','fish244','fish245']}"
+    main(args)
+    #main(sys.argv[1])
 
