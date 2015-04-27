@@ -14,10 +14,10 @@ import pandas as pd
 from pandas import DataFrame
 
 class FishReport:
-    def __init__(self, _args, _statisticsDir, _methodPrefix='statistics', _methodType='cross_sections', _mainTitle="Medaka's report", _docName="fish-report.pdf", _mandatoryStats=[' Area ', ' Perim ', ' Circ ', ' Rectang ', ' EquivEllAr ', ' Compactness ', ' Concavity ' , ' Convexity ']):
+    def __init__(self, _args, _statisticsDir, _methodPrefix='statistics',
+            _mainTitle="Medaka's report", _docName="fish-report.pdf", _mandatoryStats=['Area']):
         self.statisticsDir = _statisticsDir
         self.methodPrefix = _methodPrefix
-        self.methodType = _methodType
         self.pageWidth = defaultPageSize[0]
         self.pageHeight = defaultPageSize[1]
         self.styles = getSampleStyleSheet()
@@ -126,10 +126,11 @@ class FishReport:
         for fishClass, fishNames in self.args.items():
             for fishName in fishNames:
                 dataPath = os.path.join(inputPath, fishName)
-                files = [f for f in os.listdir(dataPath) if os.path.isfile(os.path.join(dataPath,f)) and f.startswith(self.methodPrefix + '_' + self.methodType)]
+                files = [f for f in os.listdir(dataPath) if os.path.isfile(os.path.join(dataPath,f)) and f.startswith(self.methodPrefix)]
 
                 if files:
-                    dataFrames[fishName] = pd.read_csv(os.path.join(dataPath, files[0]), sep='\t')
+                    dataFrames[fishName] = pd.read_csv(os.path.join(dataPath,
+                        files[0]), sep=';')
 
                 if not cols:
                     cols = dataFrames[fishName].columns.tolist()
@@ -157,7 +158,7 @@ class FishReport:
         self.doc.build(self.story, onFirstPage=self.titlePage, onLaterPages=self.regularPage)
 
 def main(args):
-    fishReport = FishReport(args, '/Users/Roman/Documents/testtest_result')
+    fishReport = FishReport(args, '~/ANKA_Work/Results')
     fishReport.generate()
 
 if __name__ == '__main__':
