@@ -3,6 +3,7 @@ import sys
 import ast
 import matplotlib.pyplot as plt
 import numpy as np
+import itertools
 from io import BytesIO
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import inch, cm
@@ -13,6 +14,7 @@ from reportlab.rl_config import defaultPageSize
 import matplotlib.pyplot as plt
 import matplotlib.cm as cmx
 import matplotlib.colors as colors
+import matplotlib.ticker as mtick
 
 import pandas as pd
 from pandas import DataFrame
@@ -79,6 +81,9 @@ class FishReport:
             'ArBBox': 'ArBBox = Feret*Breadth. This is the area of the Bounding Box along the Feret diameter, but it is not necessarily the minimal bounding box! (Search the net for "rotating calipers algorithm").',
             'Rectang': 'Rectangularity = Area/ArBBox. This approaches 0 for cross-like objects, 0.5 for squares, pi/4=0.79 for circles and approaches 1 for long rectangles.'
         }
+        self.unitsInfo = {
+            'Area': 'SliceVol/FishVol'
+        }
         self.mandatoryStats = _mandatoryStats
         self.docName = _docName
         self.doc = SimpleDocTemplate(self.docName)
@@ -86,15 +91,6 @@ class FishReport:
         self.styleH1 = self.styles["Heading1"]
         self.styleH2 = self.styles["Heading2"]
         self.story = [Spacer(1, 2 * inch)]
-
-    def get_cmap(N):
-        color_norm  = colors.Normalize(vmin=0, vmax=N-1)
-        scalar_map = cmx.ScalarMappable(norm=color_norm, cmap='hsv') 
-
-        def map_index_to_rgb_color(index):
-            return scalar_map.to_rgba(index)
-    
-        return map_index_to_rgb_color
 
     def titlePage(self, canvas, doc):
         canvas.saveState()
@@ -110,15 +106,57 @@ class FishReport:
         canvas.drawString(inch, 0.75 * inch, "%d" % (doc.page))
         canvas.restoreState()
 
+
     def createPlotWithCol(self, dataFrames, column, args, doc):
+        fig = plt.figure(figsize=(10, 5))
+        ax = fig.add_subplot(111)
+        #ax.set_position([0.1, 0.1, .85, .85])
+        ax.set_position([0.1, 0.35, .85, .6])
+
+        fishes_names = [i for i in itertools.chain.from_iterable(args.values())]
+        colors = cmx.hsv(np.linspace(0, 1, len(fishes_names)))
+
+        for fishName, color in zip(fishes_names, colors):
+            data_len = len(dataFrames[fishName][column])
+            x_perc = np.linspace(0, 100, data_len)
+            ax.plot(x_perc, dataFrames[fishName][column], label=fishName, color=color)
+
+        x_axix_format = '%.0f%%'
+        xticks = mtick.FormatStrFormatter(x_axix_format)
+        ax.xaxis.set_major_formatter(xticks)
+        ax.grid(True)
+        #fig.tight_layout()
+
+        plt.xlabel('Number of slice (%)', labelpad=5)
+        plt.ylabel(self.unitsInfo[column])
+        
+        ax.legend(loc='center', bbox_to_anchor=(0.5, -0.35), ncol=6, prop={'size': 12})
+
+        imgdata = BytesIO()
+        fig.savefig(imgdata, format='png')
+        imgdata.seek(0)
+        img = Image(imgdata)
+        img._restrictSize(doc.width, doc.height)
+
+        return img
+
+    def createPlotWithCol2(self, dataFrames, column, args, doc):
         fig = plt.figure(figsize=(10, 4))
         ax = fig.add_subplot(111)
 
+        nfishes = 0
+        for fishClass, fishNames in args.items():
+            nfishes = nfishes + len(fishNames)
+
+        cmap = self.get_cmap(nfishes)
+
+        i_color = 0
         for fishClass, fishNames in args.items():
             for fishName in fishNames:
-                ax = dataFrames[fishName][column].plot(ax=ax, label=fishName)
+                ax = dataFrames[fishName][column].plot(ax=ax, label=fishName, color=cmap(i_color))
+                i_color = i_color + 1
 
-        plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
+        plt.legend(loc='center left')
         plt.xlabel('Number of slice (%)')
         plt.ylabel('Units')
         plt.grid(True)
@@ -174,7 +212,7 @@ class FishReport:
             newPlot = self.createPlotWithCol(data, column, self.args, self.doc)
             self.story.append(newPlot)
 
-            self.story.append(Spacer(1, 0.2 * inch))
+            self.story.append(Spacer(1, 0.1 * inch))
 
         self.doc.build(self.story, onFirstPage=self.titlePage, onLaterPages=self.regularPage)
 
