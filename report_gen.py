@@ -21,7 +21,7 @@ from pandas import DataFrame
 
 class FishReport:
     def __init__(self, _args, _statisticsDir, _methodPrefix='statistics',
-            _mainTitle="Medaka's report", _docName="fish-report.pdf", _mandatoryStats=['Area']):
+            _mainTitle="Medaka's report", _docName="fish-report.pdf", _mandatoryStats=['Area','']):
         self.statisticsDir = _statisticsDir
         self.methodPrefix = _methodPrefix
         self.pageWidth = defaultPageSize[0]
@@ -29,6 +29,7 @@ class FishReport:
         self.styles = getSampleStyleSheet()
         self.args = ast.literal_eval(_args)
         self.mainTitle = _mainTitle
+        self.voxelSize = [1, 1, 1]
         self.subTitleText = "Comparison of phenotypes form %s classes" % (', '.join(["'%s'" % k for k in self.args.keys()]))
         self.metricsInfo = {
             'CSIndex': 'Index if the current cross-section.',
@@ -82,7 +83,7 @@ class FishReport:
             'Rectang': 'Rectangularity = Area/ArBBox. This approaches 0 for cross-like objects, 0.5 for squares, pi/4=0.79 for circles and approaches 1 for long rectangles.'
         }
         self.unitsInfo = {
-            'Area': 'SliceVol/FishVol'
+            'Area': 'SliceArea/FishVol'
         }
         self.mandatoryStats = _mandatoryStats
         self.docName = _docName
@@ -106,67 +107,58 @@ class FishReport:
         canvas.drawString(inch, 0.75 * inch, "%d" % (doc.page))
         canvas.restoreState()
 
+    def getDataByColumn(self, fishName, column, dataFrames):
+        dataFrame = None
+
+        if column == 'Area':
+            dataFrame = dataFrames[fishName]['Area']
+        elif column == 'Circularity':
+            dataFrame = 2.0*np.sqrt(dataFrames[fishName]['Area']) / dataFrames[fishName]['Perim.']
+        elif column == 'Surface':
+            dataFrame = dataFrames[fishName]['Perim.'].sum() / (self.voxelSize[0] * self.voxelSize[1])
+        elif column == 'Volume':
+            dataFrame = dataFrames[fishName]['Area'].sum() / (self.voxelSize[0] * self.voxelSize[1])
+        elif column == 'Length':
+            dataFrame = dataFrames[fishName]['Area'].count()
+        elif column == 'Width':
+            dataFrame = dataFrames[fishName]['Width'].max()
+        elif column == 'Height':
+            dataFrame = dataFrames[fishName]['Height'].max()
+        else:
+            print 'Incorrent column!'
+
+        return dataFrame
+
 
     def createPlotWithCol(self, dataFrames, column, args, doc):
         fig = plt.figure(figsize=(10, 5))
         ax = fig.add_subplot(111)
-        #ax.set_position([0.1, 0.1, .85, .85])
         ax.set_position([0.1, 0.35, .85, .6])
 
         fishes_names = [i for i in itertools.chain.from_iterable(args.values())]
         colors = cmx.hsv(np.linspace(0, 1, len(fishes_names)))
 
-        for fishName, color in zip(fishes_names, colors):
-            data_len = len(dataFrames[fishName][column])
-            x_perc = np.linspace(0, 100, data_len)
-            ax.plot(x_perc, dataFrames[fishName][column], label=fishName, color=color)
+        if column == 'Area' or column == 'Circularity':
+            for fishName, color in zip(fishes_names, colors):
+                data_len = len(getDataByColumn(fishName, column, dataFrames))
+                x_perc = np.linspace(0, 100, data_len)
+                ax.plot(x_perc, getDataByColumn(fishName, column, dataFrames), label=fishName, color=color)
 
-        x_axix_format = '%.0f%%'
-        xticks = mtick.FormatStrFormatter(x_axix_format)
-        ax.xaxis.set_major_formatter(xticks)
-        ax.grid(True)
-        #fig.tight_layout()
+            x_axix_format = '%.0f%%'
+            xticks = mtick.FormatStrFormatter(x_axix_format)
+            ax.xaxis.set_major_formatter(xticks)
+            ax.grid(True)
 
-        plt.xlabel('Number of slice (%)', labelpad=5)
-        plt.ylabel(self.unitsInfo[column])
-        
-        ax.legend(loc='center', bbox_to_anchor=(0.5, -0.35), ncol=6, prop={'size': 12})
+            plt.xlabel('Number of slice (%)', labelpad=5)
+            plt.ylabel(self.unitsInfo[column])
+            
+            ax.legend(loc='center', bbox_to_anchor=(0.5, -0.35), ncol=6, prop={'size': 12})
 
         imgdata = BytesIO()
         fig.savefig(imgdata, format='png')
         imgdata.seek(0)
         img = Image(imgdata)
         img._restrictSize(doc.width, doc.height)
-
-        return img
-
-    def createPlotWithCol2(self, dataFrames, column, args, doc):
-        fig = plt.figure(figsize=(10, 4))
-        ax = fig.add_subplot(111)
-
-        nfishes = 0
-        for fishClass, fishNames in args.items():
-            nfishes = nfishes + len(fishNames)
-
-        cmap = self.get_cmap(nfishes)
-
-        i_color = 0
-        for fishClass, fishNames in args.items():
-            for fishName in fishNames:
-                ax = dataFrames[fishName][column].plot(ax=ax, label=fishName, color=cmap(i_color))
-                i_color = i_color + 1
-
-        plt.legend(loc='center left')
-        plt.xlabel('Number of slice (%)')
-        plt.ylabel('Units')
-        plt.grid(True)
-        plt.tight_layout()
-
-        imgdata = BytesIO()
-        fig.savefig(imgdata, format='png')
-        imgdata.seek(0)
-        img = Image(imgdata)
-        img._restrictSize(doc.width, doc.height*0.3)
 
         return img
 
@@ -217,7 +209,7 @@ class FishReport:
         self.doc.build(self.story, onFirstPage=self.titlePage, onLaterPages=self.regularPage)
 
 def main(args):
-    fishReport = FishReport(args, 'E:\Report generator\Results')
+    fishReport = FishReport(args, '/Users/rshkarin/Documents/fish-report-generator/Results')
     fishReport.generate()
 
 if __name__ == '__main__':
